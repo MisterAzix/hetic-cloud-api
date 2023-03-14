@@ -1,11 +1,25 @@
 import express, { Application, Request, Response } from 'express';
+import HttpStatus from 'http-status';
+import { exec } from 'child_process';
 
 const app: Application = express();
+const port = 3000;
 
-const port: number = 3001;
+app.get('/api/status', (req: Request, res: Response) => {
+  res.sendStatus(HttpStatus.OK);
+});
 
-app.get('/status', (req: Request, res: Response) => {
-  res.sendStatus(200);
+app.get('/api/meminfo', (req: Request, res: Response) => {
+  exec('cat /proc/meminfo', (err, output) => {
+    const lines = output.split('\n').filter((line) => line.trim() !== '');
+    const data: any = {};
+    lines.forEach((line) => {
+      const parts = line.split(':');
+      data[parts[0]] = parts[1].trim();
+    });
+    res.writeHead(HttpStatus.OK, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(data));
+  });
 });
 
 app.listen(port, function () {
