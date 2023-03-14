@@ -38,4 +38,3 @@ next-env.d.ts
 # other
 .idea
 .vscode
-dist
