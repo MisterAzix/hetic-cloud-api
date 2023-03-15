@@ -1,9 +1,14 @@
 import express, { Application, Request, Response } from 'express';
+import cors from 'cors';
 import HttpStatus from 'http-status';
 import { exec, execSync } from 'child_process';
 
 const app: Application = express();
 const port = 3000;
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
 app.get('/api/status', (req: Request, res: Response) => {
   res.sendStatus(HttpStatus.OK);
@@ -58,13 +63,55 @@ app.get('/api/users', (req: Request, res: Response) => {
       .split('\n')
       .map((line) => {
         const [name, home] = line.split(':');
-        const sizeCmd = `du -sh "${home}"`;
+        const sizeCmd = `sudo du -sh "${home}"`;
         const size = execSync(sizeCmd, { encoding: 'utf-8' }).trim().split('\t')[0];
         return { name, home, size };
       });
 
     res.writeHead(HttpStatus.OK, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(users));
+  });
+});
+
+app.post('/api/users', (req: Request, res: Response) => {
+  const { username, id_rsa } = req.body;
+  if (!username || !id_rsa) {
+    return res
+      .status(HttpStatus.BAD_REQUEST)
+      .send({ code: 'MISSING_PROPERTIES', message: 'Username or SSH key is missing!' });
+  }
+
+  exec(`sudo useradd -m ${username}`, (err) => {
+    if (err) {
+      return res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .send({ code: 'USER_ALREADY_EXIST', message: 'User already exist!' });
+    }
+    exec(`sudo chmod 700 /home/${username}/.ssh`, (err) => {
+      if (err) {
+        return res.status(HttpStatus.INTERNAL_SERVER_ERROR).send({
+          code: 'SETTING_AUTHORIZATION_FAILED',
+          message: 'Cannot set authorizations to .ssh directory!',
+        });
+      }
+      exec(`sudo chmod 600 /home/${username}/.ssh/authorized_keys`, (err) => {
+        if (err) {
+          return res.status(HttpStatus.INTERNAL_SERVER_ERROR).send({
+            code: 'SETTING_AUTHORIZATION_FAILED',
+            message: 'Cannot set authorizations to authorized_keys file!',
+          });
+        }
+        exec(`echo "${id_rsa}" | sudo tee /home/${username}/.ssh/authorized_keys`, (err) => {
+          if (err) {
+            return res
+              .status(HttpStatus.INTERNAL_SERVER_ERROR)
+              .send({ code: 'SSH_KEY_ADDITION_FAILED', message: 'SSH key cannot be added!' });
+          }
+
+          return res.sendStatus(HttpStatus.OK);
+        });
+      });
+    });
   });
 });
 
