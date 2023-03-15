@@ -47,6 +47,22 @@ app.get('/api/cpuinfo', (req, res) => {
         return res.end(JSON.stringify(data));
     });
 });
+app.get('/api/users', (req, res) => {
+    const cmd = "cut -d: -f1,3,6 /etc/passwd | awk -F: '$2 >= 1000 && $2 <= 60000' | cut -d: -f1,3";
+    (0, child_process_1.exec)(cmd, (err, stdout, stderr) => {
+        const users = stdout
+            .trim()
+            .split('\n')
+            .map((line) => {
+            const [name, home] = line.split(':');
+            const sizeCmd = `du -sh "${home}"`;
+            const size = (0, child_process_1.execSync)(sizeCmd, { encoding: 'utf-8' }).trim().split('\t')[0];
+            return { name, home, size };
+        });
+        res.writeHead(http_status_1.default.OK, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(users));
+    });
+});
 app.listen(port, function () {
     console.log(`App is listening on port ${port} !`);
 });

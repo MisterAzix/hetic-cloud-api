@@ -1,6 +1,6 @@
 import express, { Application, Request, Response } from 'express';
 import HttpStatus from 'http-status';
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 
 const app: Application = express();
 const port = 3000;
@@ -47,6 +47,24 @@ app.get('/api/cpuinfo', (req: Request, res: Response) => {
 
     res.writeHead(HttpStatus.OK, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(data));
+  });
+});
+
+app.get('/api/users', (req: Request, res: Response) => {
+  const cmd = "cut -d: -f1,3,6 /etc/passwd | awk -F: '$2 >= 1000 && $2 <= 60000' | cut -d: -f1,3";
+  exec(cmd, (err, stdout, stderr) => {
+    const users = stdout
+      .trim()
+      .split('\n')
+      .map((line) => {
+        const [name, home] = line.split(':');
+        const sizeCmd = `du -sh "${home}"`;
+        const size = execSync(sizeCmd, { encoding: 'utf-8' }).trim().split('\t')[0];
+        return { name, home, size };
+      });
+
+    res.writeHead(HttpStatus.OK, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(users));
   });
 });
 
